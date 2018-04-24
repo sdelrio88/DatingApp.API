@@ -25,14 +25,32 @@ namespace DatingApp.API.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetUsers()
+        public async Task<IActionResult> GetUsers([FromQuery]UserParams userParams)
         {
-            var users = await _repo.GetUsers();
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
+            var userFromRepo = await _repo.GetUser(currentUserId);
+
+            userParams.UserId = currentUserId;   //We get the userId so we can exclude this user from results
+
+            if (string.IsNullOrEmpty(userParams.Gender))
+            {
+                //if gender is not provided in queryString, get the gender from User and show the opposite
+                userParams.Gender = userFromRepo.Gender == "male" ? "female" : "male";
+            }
+
+            var users = await _repo.GetUsers(userParams);
+            //This variable is now a PagedList<User>. 
+            //This contains a list of filtered users and pagination options
 
             var usersToReturn = _mapper.Map<IEnumerable<UserForListDto>>(users);
 
+            //Send the pagination options through the header in response
+            Response.AddPagination(users.CurrentPage, users.PageSize, users.TotalCount, users.TotalPages);
+
             return Ok(usersToReturn);
         }
+
 
         [HttpGet("{id}", Name = "GetUser")]
         public async Task<IActionResult> GetUser(int id)
